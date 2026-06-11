@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 
 Skill = Literal["diagnostic", "reading", "listening", "writing", "translation", "vocabulary"]
+MaterialSkill = Literal["reading", "listening", "writing", "translation", "vocabulary"]
 
 
 class Question(BaseModel):
@@ -60,4 +61,16 @@ class GradeAttemptRequest(BaseModel):
 
 class MaterialRequest(BaseModel):
     title: str
+    skill: MaterialSkill
+    exam_year: int
     content: str
+
+
+class ExamPaperImportRequest(BaseModel):
+    title: str
+    exam_year: int
+    source_text: str
+
+
+class LocalFolderImportRequest(BaseModel):
+    root_path: str | None = None

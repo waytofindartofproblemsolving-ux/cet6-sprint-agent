@@ -25,9 +25,20 @@ def test_dashboard_and_drill_submission_flow_uses_fake_ai(tmp_path, monkeypatch)
     assert dashboard.status_code == 200
     assert "CET-6 Sprint" in dashboard.text
 
+    saved = client.post(
+        "/api/materials",
+        json={
+            "title": "2024 CET-6 source",
+            "skill": "writing",
+            "exam_year": 2024,
+            "content": "Recent real CET-6 source text for practice.",
+        },
+    )
+    assert saved.status_code == 200
+
     generated = client.post(
         "/api/drills/generate",
-        json={"skill": "writing", "minutes": 8},
+        json={"skill": "writing", "minutes": 8, "material_id": saved.json()["id"]},
     )
     assert generated.status_code == 200
     drill = generated.json()

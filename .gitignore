@@ -5,3 +5,8 @@ __pycache__/
 *.sqlite3
 .env
 htmlcov/
+20*/
+_quarantine_ads/
+import-reports/
+*.mp3
+*.MP3

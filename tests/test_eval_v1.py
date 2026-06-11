@@ -52,7 +52,7 @@ def test_ai_setup_failure_returns_503_without_traceback(tmp_path):
 
     response = client.post(
         "/api/drills/generate",
-        json={"skill": "writing", "minutes": 8},
+        json={"skill": "writing", "minutes": 8, "material_id": saved_material(client)},
     )
 
     assert response.status_code == 503
@@ -93,6 +93,8 @@ def test_saved_material_can_be_listed_and_used_for_generation(tmp_path):
         "/api/materials",
         json={
             "title": "My CET-6 passage",
+            "skill": "reading",
+            "exam_year": 2024,
             "content": "Practice improves accuracy when feedback is immediate.",
         },
     )
@@ -100,7 +102,14 @@ def test_saved_material_can_be_listed_and_used_for_generation(tmp_path):
 
     listed = client.get("/api/materials")
     assert listed.status_code == 200
-    assert listed.json() == [{"id": saved.json()["id"], "title": "My CET-6 passage"}]
+    assert listed.json() == [
+        {
+            "id": saved.json()["id"],
+            "title": "My CET-6 passage",
+            "skill": "reading",
+            "exam_year": 2024,
+        }
+    ]
 
     generated = client.post(
         "/api/drills/generate",
@@ -109,3 +118,17 @@ def test_saved_material_can_be_listed_and_used_for_generation(tmp_path):
 
     assert generated.status_code == 200
     assert ai_client.last_material_text == "Practice improves accuracy when feedback is immediate."
+
+
+def saved_material(client):
+    saved = client.post(
+        "/api/materials",
+        json={
+            "title": "2024 CET-6 source",
+            "skill": "writing",
+            "exam_year": 2024,
+            "content": "Recent real CET-6 source text.",
+        },
+    )
+    assert saved.status_code == 200
+    return saved.json()["id"]

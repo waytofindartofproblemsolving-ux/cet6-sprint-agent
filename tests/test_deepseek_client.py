@@ -50,7 +50,7 @@ def test_generate_drill_uses_deepseek_chat_json_output():
     assert call["model"] == "deepseek-v4-flash"
     assert call["response_format"] == {"type": "json_object"}
     assert call["extra_body"] == {"thinking": {"type": "disabled"}}
-    assert "untrusted study text" in call["messages"][1]["content"]
+    assert "untrusted recent real CET-6 exam text" in call["messages"][1]["content"]
     assert "Example JSON" in call["messages"][1]["content"]
 
 

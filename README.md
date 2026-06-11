@@ -1,6 +1,6 @@
 # CET-6 Sprint Agent
 
-A small local web app for a three-day CET-6 study sprint. It generates timed drills, grades attempts, records mistakes, and schedules next-day review.
+A small local web app for a three-day CET-6 study sprint. It generates timed drills from user-provided recent real CET-6 exam materials, grades attempts, records mistakes, and schedules next-day review.
 
 ## Setup
 
@@ -35,6 +35,14 @@ python -m uvicorn app.main:app --reload
 
 - `cet6.sqlite3`: local drills, attempts, materials, and review items.
 - `DEEPSEEK_API_KEY` / `OPENAI_API_KEY`: read only from the environment. Keys are not stored in the repo or rendered on the page.
+
+## Material Policy
+
+Drill generation requires selecting a saved CET-6 real exam material from the past 15 years. The repo does not include copyrighted real-paper text; paste your own source material locally and tag it with its exam year.
+
+The Materials page can also import a full paper that you paste locally. Use section headings such as `## Reading`, `## Listening`, `## Writing`, `## Translation`, or `## Vocabulary`; Chinese headings like `【阅读】` and `【翻译】` are supported too. The importer splits sections into skill-tagged material records.
+
+For local PDF/Word collections, use the Materials page's local folder importer. It scans local CET-6 folders, quarantines ad files into `_quarantine_ads/`, extracts PDF/DOCX/TXT text, stores answer explanations separately from practice materials, and reports files that need manual conversion.
 
 ## API Notes
 

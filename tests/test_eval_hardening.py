@@ -42,9 +42,19 @@ def test_endpoint_ai_errors_are_redacted_and_do_not_save_partial_attempts(tmp_pa
 
     db_path = tmp_path / "cet6.sqlite3"
     client = TestClient(create_app(ai_client=FailingGradeAI(), db_path=db_path))
+    saved = client.post(
+        "/api/materials",
+        json={
+            "title": "2024 CET-6 source",
+            "skill": "writing",
+            "exam_year": 2024,
+            "content": "Recent real CET-6 source text.",
+        },
+    )
+    assert saved.status_code == 200
     drill = client.post(
         "/api/drills/generate",
-        json={"skill": "writing", "minutes": 8},
+        json={"skill": "writing", "minutes": 8, "material_id": saved.json()["id"]},
     ).json()
 
     response = client.post(
@@ -147,7 +157,10 @@ def test_invalid_input_returns_clean_errors_without_extra_state(tmp_path):
     assert client.post("/api/drills/generate", json={"skill": "grammar", "minutes": 8}).status_code == 422
     assert client.post("/api/drills/generate", json={"skill": "writing", "minutes": 0}).status_code == 422
     assert client.post("/api/drills/generate", json={"skill": "writing", "minutes": 61}).status_code == 422
-    assert client.post("/api/materials", json={"title": "", "content": ""}).status_code == 400
+    assert client.post(
+        "/api/materials",
+        json={"title": "", "skill": "writing", "exam_year": 2024, "content": ""},
+    ).status_code == 400
     assert client.post(
         "/api/attempts/grade",
         json={"drill_id": 999999, "answers": {"q1": "Answer."}},

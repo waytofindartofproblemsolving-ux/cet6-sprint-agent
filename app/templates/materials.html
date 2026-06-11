@@ -4,19 +4,58 @@
   <h1>Materials</h1>
   <form id="material-form" class="stack">
     <label>Title
-      <input name="title" placeholder="真题阅读 2024-12 Passage 1">
+      <input name="title" placeholder="2024-12 CET-6 Reading Passage 1">
+    </label>
+    <label>Question type
+      <select name="skill" required>
+        <option value="reading">Reading</option>
+        <option value="listening">Listening</option>
+        <option value="writing">Writing</option>
+        <option value="translation">Translation</option>
+        <option value="vocabulary">Vocabulary</option>
+      </select>
+    </label>
+    <label>Exam year
+      <input name="exam_year" type="number" min="2012" max="2026" value="2024" required>
     </label>
     <label>Text
-      <textarea name="content" rows="12" placeholder="Paste your own material here."></textarea>
+      <textarea name="content" rows="12" placeholder="Paste recent real CET-6 exam material here."></textarea>
     </label>
     <button class="button primary" type="submit">Save</button>
   </form>
   <p id="material-result"></p>
 </section>
+<section class="panel">
+  <h1>Import Paper</h1>
+  <form id="paper-form" class="stack">
+    <label>Paper title
+      <input name="title" placeholder="2024-12 CET-6 Set 1">
+    </label>
+    <label>Exam year
+      <input name="exam_year" type="number" min="2012" max="2026" value="2024" required>
+    </label>
+    <label>Full text with section headings
+      <textarea name="source_text" rows="14" placeholder="Use headings like ## Reading, ## Listening, ## Writing, ## Translation, ## Vocabulary. Chinese headings like 【阅读】 and 【翻译】 also work."></textarea>
+    </label>
+    <button class="button primary" type="submit">Import sections</button>
+  </form>
+  <p id="paper-result"></p>
+</section>
+<section class="panel">
+  <h1>Import Local Folder</h1>
+  <form id="folder-form" class="stack">
+    <label>Root folder
+      <input name="root_path" placeholder="Leave blank to scan this project folder">
+    </label>
+    <button class="button primary" type="submit">Scan and import</button>
+  </form>
+  <p id="folder-result"></p>
+</section>
 <script>
 document.querySelector("#material-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = Object.fromEntries(new FormData(event.target));
+  payload.exam_year = Number(payload.exam_year);
   const response = await fetch("/api/materials", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -25,6 +64,36 @@ document.querySelector("#material-form").addEventListener("submit", async (event
   const result = await response.json();
   document.querySelector("#material-result").textContent = response.ok
     ? `Saved material #${result.id}`
+    : result.detail;
+});
+
+document.querySelector("#paper-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = Object.fromEntries(new FormData(event.target));
+  payload.exam_year = Number(payload.exam_year);
+  const response = await fetch("/api/papers/import", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json();
+  document.querySelector("#paper-result").textContent = response.ok
+    ? `Imported ${result.imported_count} sections`
+    : result.detail;
+});
+
+document.querySelector("#folder-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = Object.fromEntries(new FormData(event.target));
+  if (!payload.root_path) delete payload.root_path;
+  const response = await fetch("/api/papers/import-local-folder", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json();
+  document.querySelector("#folder-result").textContent = response.ok
+    ? `Imported ${result.imported_material_count} materials, ${result.answer_explanation_count} explanations, quarantined ${result.quarantined_count} ads, ${result.failed_count} failures`
     : result.detail;
 });
 </script>

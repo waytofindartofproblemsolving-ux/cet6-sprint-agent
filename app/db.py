@@ -29,6 +29,8 @@ def init_db(connection: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS materials (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
+            skill TEXT,
+            exam_year INTEGER,
             content TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
@@ -57,8 +59,27 @@ def init_db(connection: sqlite3.Connection) -> None:
             due_date TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS answer_explanations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            exam_year INTEGER NOT NULL,
+            exam_month INTEGER,
+            set_no INTEGER,
+            content TEXT NOT NULL,
+            source_path TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
         """
     )
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(materials)").fetchall()
+    }
+    if "exam_year" not in columns:
+        connection.execute("ALTER TABLE materials ADD COLUMN exam_year INTEGER")
+    if "skill" not in columns:
+        connection.execute("ALTER TABLE materials ADD COLUMN skill TEXT")
     connection.commit()
 
 
@@ -151,27 +172,111 @@ def list_due_review_items(
     ]
 
 
-def save_material(connection: sqlite3.Connection, title: str, content: str) -> int:
+def save_material(
+    connection: sqlite3.Connection,
+    title: str,
+    content: str,
+    exam_year: int,
+    skill: str,
+) -> int:
     cursor = connection.execute(
-        "INSERT INTO materials (title, content) VALUES (?, ?)",
-        (title.strip(), content.strip()),
+        "INSERT INTO materials (title, content, exam_year, skill) VALUES (?, ?, ?, ?)",
+        (title.strip(), content.strip(), exam_year, skill),
     )
     connection.commit()
     return int(cursor.lastrowid)
 
 
-def list_materials(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_materials(connection: sqlite3.Connection, skill: str | None = None) -> list[dict[str, Any]]:
+    params: tuple[Any, ...] = ()
+    skill_filter = ""
+    if skill:
+        skill_filter = "AND skill = ?"
+        params = (skill,)
     rows = connection.execute(
-        "SELECT id, title FROM materials ORDER BY id DESC"
+        f"""
+        SELECT id, title, skill, exam_year
+        FROM materials
+        WHERE exam_year IS NOT NULL AND skill IS NOT NULL
+        {skill_filter}
+        ORDER BY id DESC
+        """,
+        params,
     ).fetchall()
-    return [{"id": int(row["id"]), "title": str(row["title"])} for row in rows]
+    return [
+        {
+            "id": int(row["id"]),
+            "title": str(row["title"]),
+            "skill": str(row["skill"]),
+            "exam_year": row["exam_year"],
+        }
+        for row in rows
+    ]
 
 
-def get_material(connection: sqlite3.Connection, material_id: int | None) -> str | None:
+def get_material(connection: sqlite3.Connection, material_id: int | None) -> dict[str, Any] | None:
     if material_id is None:
         return None
-    row = connection.execute("SELECT content FROM materials WHERE id = ?", (material_id,)).fetchone()
-    return None if row is None else str(row["content"])
+    row = connection.execute(
+        "SELECT content, exam_year, skill FROM materials WHERE id = ?",
+        (material_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "content": str(row["content"]),
+        "exam_year": row["exam_year"],
+        "skill": row["skill"],
+    }
+
+
+def save_answer_explanation(
+    connection: sqlite3.Connection,
+    title: str,
+    content: str,
+    exam_year: int,
+    source_path: str,
+    exam_month: int | None = None,
+    set_no: int | None = None,
+) -> int:
+    cursor = connection.execute(
+        """
+        INSERT INTO answer_explanations
+            (title, exam_year, exam_month, set_no, content, source_path)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            title.strip(),
+            exam_year,
+            exam_month,
+            set_no,
+            content.strip(),
+            source_path,
+        ),
+    )
+    connection.commit()
+    return int(cursor.lastrowid)
+
+
+def list_answer_explanations(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, title, exam_year, exam_month, set_no, source_path
+        FROM answer_explanations
+        ORDER BY id ASC
+        """
+    ).fetchall()
+    return [
+        {
+            "id": int(row["id"]),
+            "title": str(row["title"]),
+            "exam_year": int(row["exam_year"]),
+            "exam_month": row["exam_month"],
+            "set_no": row["set_no"],
+            "source_path": str(row["source_path"]),
+        }
+        for row in rows
+    ]
 
 
 def dashboard_counts(connection: sqlite3.Connection) -> dict[str, int]:

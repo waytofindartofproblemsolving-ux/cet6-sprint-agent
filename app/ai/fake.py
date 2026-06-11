@@ -8,11 +8,11 @@ class FakeAIClient:
         minutes: int,
         material_text: str | None = None,
     ) -> Drill:
-        prompt = "Write a compact CET-6 response about daily practice."
+        prompt = "Use the selected recent real CET-6 exam material for this drill."
         if skill == "reading":
             prompt = "What is the main idea of the passage?"
         if material_text:
-            prompt = f"Use this material and answer one focused question: {material_text[:120]}"
+            prompt = f"Use this recent real exam material and answer one focused question: {material_text[:120]}"
 
         return Drill(
             skill=skill,

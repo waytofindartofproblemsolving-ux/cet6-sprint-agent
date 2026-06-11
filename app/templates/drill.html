@@ -4,7 +4,7 @@
   <h1>Timed Drill</h1>
   <form id="generate-form" class="stack">
     <label>Skill
-      <select name="skill">
+      <select name="skill" id="skill-select">
         <option value="writing">Writing</option>
         <option value="reading">Reading</option>
         <option value="translation">Translation</option>
@@ -16,8 +16,8 @@
       <input name="minutes" type="number" min="1" max="60" value="8">
     </label>
     <label>Material
-      <select name="material_id" id="material-select">
-        <option value="">Original practice</option>
+      <select name="material_id" id="material-select" required>
+        <option value="">Select recent real exam material</option>
       </select>
     </label>
     <button class="button primary" type="submit">Generate</button>
@@ -28,6 +28,7 @@
 const form = document.querySelector("#generate-form");
 const output = document.querySelector("#drill-output");
 const materialSelect = document.querySelector("#material-select");
+const skillSelect = document.querySelector("#skill-select");
 let activeDrill = null;
 
 function textElement(tag, text, className) {
@@ -111,17 +112,23 @@ async function submitAnswer(event) {
 }
 
 async function loadMaterials() {
-  const response = await fetch("/api/materials");
+  materialSelect.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select recent real exam material";
+  materialSelect.appendChild(placeholder);
+  const response = await fetch(`/api/materials?skill=${encodeURIComponent(skillSelect.value)}`);
   if (!response.ok) return;
   const materials = await response.json();
   for (const material of materials) {
     const option = document.createElement("option");
     option.value = String(material.id);
-    option.textContent = material.title;
+    option.textContent = `${material.exam_year} - ${material.title}`;
     materialSelect.appendChild(option);
   }
 }
 
+skillSelect.addEventListener("change", loadMaterials);
 loadMaterials();
 </script>
 {% endblock %}

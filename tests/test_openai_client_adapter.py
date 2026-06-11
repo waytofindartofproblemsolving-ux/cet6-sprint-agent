@@ -75,7 +75,7 @@ def test_user_material_is_delimited_as_untrusted_study_text():
     )
 
     user_message = client.client.responses.calls[0]["input"][1]["content"]
-    assert "untrusted study text" in user_message
+    assert "untrusted recent real CET-6 exam text" in user_message
     assert "<user_material>" in user_message
     assert "</user_material>" in user_message
 
