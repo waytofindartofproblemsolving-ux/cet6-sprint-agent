@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="kicker">Three-day rescue plan</p>
+    <h1>CET-6 Sprint</h1>
+    <p class="lead">Timed drills, strict feedback, and next-day mistake review for the final push.</p>
+    <div class="actions">
+      <a class="button primary" href="/drill">Start drill</a>
+      <a class="button" href="/review">Review mistakes</a>
+    </div>
+  </div>
+  <div class="stats" aria-label="Study progress">
+    <span><strong>{{ counts.drills }}</strong> drills</span>
+    <span><strong>{{ counts.attempts }}</strong> attempts</span>
+    <span><strong>{{ counts.reviews }}</strong> reviews</span>
+  </div>
+</section>
+{% if not ai_ready %}
+<section class="notice">
+  Live AI is not configured. Use <code>$env:AI_PROVIDER="deepseek"</code> with <code>$env:DEEPSEEK_API_KEY="..."</code>, or set <code>CET6_USE_FAKE_AI=1</code> for local demo mode.
+</section>
+{% endif %}
+<section class="grid">
+  <article>
+    <h2>Today</h2>
+    <p>Diagnostic, one timed weak-area drill, and one rewrite loop.</p>
+  </article>
+  <article>
+    <h2>Tomorrow</h2>
+    <p>Reading/listening-transcript pressure sets plus translation repair.</p>
+  </article>
+  <article>
+    <h2>Last day</h2>
+    <p>Short mock, high-frequency mistakes, and writing template consolidation.</p>
+  </article>
+</section>
+{% endblock %}

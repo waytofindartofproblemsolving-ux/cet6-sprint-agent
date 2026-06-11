@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>Materials</h1>
+  <form id="material-form" class="stack">
+    <label>Title
+      <input name="title" placeholder="真题阅读 2024-12 Passage 1">
+    </label>
+    <label>Text
+      <textarea name="content" rows="12" placeholder="Paste your own material here."></textarea>
+    </label>
+    <button class="button primary" type="submit">Save</button>
+  </form>
+  <p id="material-result"></p>
+</section>
+<script>
+document.querySelector("#material-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = Object.fromEntries(new FormData(event.target));
+  const response = await fetch("/api/materials", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json();
+  document.querySelector("#material-result").textContent = response.ok
+    ? `Saved material #${result.id}`
+    : result.detail;
+});
+</script>
+{% endblock %}

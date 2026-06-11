@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>Review Queue</h1>
+  <div id="review-list" class="stack"></div>
+</section>
+<script>
+async function loadReview() {
+  const response = await fetch("/api/review/due");
+  const items = await response.json();
+  const list = document.querySelector("#review-list");
+  list.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "No due items yet.";
+    list.appendChild(empty);
+    return;
+  }
+  for (const item of items) {
+    const card = document.createElement("article");
+    card.className = "review-card";
+    const tag = document.createElement("strong");
+    tag.textContent = item.mistake_type;
+    const prompt = document.createElement("p");
+    prompt.textContent = item.prompt;
+    const correction = document.createElement("p");
+    correction.textContent = item.corrected_answer;
+    card.append(tag, prompt, correction);
+    list.appendChild(card);
+  }
+}
+loadReview();
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>Timed Drill</h1>
+  <form id="generate-form" class="stack">
+    <label>Skill
+      <select name="skill">
+        <option value="writing">Writing</option>
+        <option value="reading">Reading</option>
+        <option value="translation">Translation</option>
+        <option value="listening">Listening transcript</option>
+        <option value="vocabulary">Vocabulary</option>
+      </select>
+    </label>
+    <label>Minutes
+      <input name="minutes" type="number" min="1" max="60" value="8">
+    </label>
+    <label>Material
+      <select name="material_id" id="material-select">
+        <option value="">Original practice</option>
+      </select>
+    </label>
+    <button class="button primary" type="submit">Generate</button>
+  </form>
+</section>
+<section id="drill-output" class="panel hidden"></section>
+<script>
+const form = document.querySelector("#generate-form");
+const output = document.querySelector("#drill-output");
+const materialSelect = document.querySelector("#material-select");
+let activeDrill = null;
+
+function textElement(tag, text, className) {
+  const element = document.createElement(tag);
+  element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(form));
+  data.minutes = Number(data.minutes);
+  if (data.material_id) {
+    data.material_id = Number(data.material_id);
+  } else {
+    delete data.material_id;
+  }
+  const response = await fetch("/api/drills/generate", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data)
+  });
+  const drill = await response.json();
+  output.replaceChildren();
+  output.classList.remove("hidden");
+  if (!response.ok) {
+    output.appendChild(textElement("p", drill.detail, "error"));
+    return;
+  }
+  activeDrill = drill;
+  output.appendChild(textElement("h2", drill.title));
+  output.appendChild(textElement("p", drill.instructions));
+
+  const answerForm = document.createElement("form");
+  answerForm.id = "answer-form";
+  answerForm.className = "stack";
+  for (const question of drill.questions) {
+    const label = document.createElement("label");
+    label.textContent = question.prompt;
+    const textarea = document.createElement("textarea");
+    textarea.name = question.id;
+    textarea.rows = 5;
+    label.appendChild(textarea);
+    answerForm.appendChild(label);
+  }
+  const submit = document.createElement("button");
+  submit.className = "button primary";
+  submit.type = "submit";
+  submit.textContent = "Submit";
+  answerForm.appendChild(submit);
+  output.appendChild(answerForm);
+
+  const feedback = document.createElement("div");
+  feedback.id = "feedback";
+  output.appendChild(feedback);
+  answerForm.addEventListener("submit", submitAnswer);
+});
+
+async function submitAnswer(event) {
+  event.preventDefault();
+  const answers = Object.fromEntries(new FormData(event.target));
+  const response = await fetch("/api/attempts/grade", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({drill_id: activeDrill.id, answers})
+  });
+  const feedback = await response.json();
+  const target = document.querySelector("#feedback");
+  target.replaceChildren();
+  if (!response.ok) {
+    target.appendChild(textElement("p", feedback.detail, "error"));
+    return;
+  }
+  const result = document.createElement("div");
+  result.className = "result";
+  result.appendChild(textElement("strong", `${feedback.score}/100`));
+  result.appendChild(textElement("p", feedback.summary));
+  result.appendChild(textElement("p", feedback.next_action));
+  target.appendChild(result);
+}
+
+async function loadMaterials() {
+  const response = await fetch("/api/materials");
+  if (!response.ok) return;
+  const materials = await response.json();
+  for (const material of materials) {
+    const option = document.createElement("option");
+    option.value = String(material.id);
+    option.textContent = material.title;
+    materialSelect.appendChild(option);
+  }
+}
+
+loadMaterials();
+</script>
+{% endblock %}
