@@ -85,3 +85,20 @@ def test_drill_generation_rejects_mismatched_material_skill(tmp_path):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Selected material does not match the requested skill."
+
+
+def test_split_exam_paper_ignores_body_lines_that_start_with_skill_words():
+    from app.services.paper_import import split_exam_paper
+
+    sections = split_exam_paper(
+        """
+## Reading
+The passage starts here.
+writing it was one of America's most fascinating discoveries.
+reading initiatives can reduce inequality in the earliest years.
+"""
+    )
+
+    assert len(sections) == 1
+    assert sections[0].skill == "reading"
+    assert "writing it was" in sections[0].content

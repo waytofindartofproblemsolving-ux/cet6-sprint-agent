@@ -158,6 +158,79 @@ def test_local_folder_import_defaults_to_project_root(tmp_path, monkeypatch):
     assert response.json()["imported_material_count"] == 2
 
 
+def test_import_local_folder_ignores_non_exam_text_files(tmp_path):
+    from app.ai.fake import FakeAIClient
+    from app.main import create_app
+
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "requirements.txt").write_text("pytest>=8.2", encoding="utf-8")
+    set_dir = root / "2024-06-01"
+    set_dir.mkdir()
+    (set_dir / "paper.pdf").write_bytes(SAMPLE_PDF)
+
+    client = TestClient(create_app(ai_client=FakeAIClient(), db_path=tmp_path / "cet6.sqlite3"))
+    response = client.post(
+        "/api/papers/import-local-folder",
+        json={"root_path": str(root)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["imported_material_count"] == 2
+    assert response.json()["failed_count"] == 0
+
+
+def test_import_local_folder_is_idempotent(tmp_path):
+    from app import db
+    from app.ai.fake import FakeAIClient
+    from app.main import create_app
+
+    root = tmp_path / "project"
+    set_dir = root / "2024-06-01"
+    set_dir.mkdir(parents=True)
+    (set_dir / "paper.pdf").write_bytes(SAMPLE_PDF)
+    (set_dir / ("answer-" + "\u89e3\u6790" + ".pdf")).write_bytes(SAMPLE_PDF)
+
+    db_path = tmp_path / "cet6.sqlite3"
+    client = TestClient(create_app(ai_client=FakeAIClient(), db_path=db_path))
+
+    first = client.post("/api/papers/import-local-folder", json={"root_path": str(root)})
+    second = client.post("/api/papers/import-local-folder", json={"root_path": str(root)})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["imported_material_count"] == 0
+    assert second.json()["answer_explanation_count"] == 0
+    with db.connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM materials").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM answer_explanations").fetchone()[0] == 1
+
+
+def test_large_answer_pdf_is_registered_without_text_extraction(tmp_path, monkeypatch):
+    from app import db
+    from app.ai.fake import FakeAIClient
+    import app.services.local_paper_import as importer
+    from app.main import create_app
+
+    monkeypatch.setattr(importer, "MAX_ANSWER_EXTRACTION_BYTES", 10)
+    root = tmp_path / "project"
+    set_dir = root / "2024-06-01"
+    set_dir.mkdir(parents=True)
+    (set_dir / "paper.pdf").write_bytes(SAMPLE_PDF)
+    (set_dir / ("answer-" + "\u89e3\u6790" + ".pdf")).write_bytes(b"not a pdf, intentionally too large")
+
+    db_path = tmp_path / "cet6.sqlite3"
+    client = TestClient(create_app(ai_client=FakeAIClient(), db_path=db_path))
+    response = client.post("/api/papers/import-local-folder", json={"root_path": str(root)})
+
+    assert response.status_code == 200
+    assert response.json()["answer_explanation_count"] == 1
+    assert response.json()["failed_count"] == 0
+    with db.connect(db_path) as conn:
+        content = conn.execute("SELECT content FROM answer_explanations").fetchone()["content"]
+    assert "Text extraction skipped" in content
+
+
 def test_import_local_folder_skips_doc_files_with_report(tmp_path):
     from app.main import create_app
     from app.ai.fake import FakeAIClient

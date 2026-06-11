@@ -13,6 +13,7 @@ from app.services.paper_import import split_exam_paper
 
 QUARANTINE_DIR = "_quarantine_ads"
 SUPPORTED_TEXT_EXTENSIONS = {".pdf", ".docx", ".txt"}
+MAX_ANSWER_EXTRACTION_BYTES = 20 * 1024 * 1024
 
 
 class TextExtractionError(RuntimeError):
@@ -129,6 +130,7 @@ def import_local_folder(root_path: Path, connection: Any) -> dict[str, Any]:
     for files in grouped.values():
         _import_group(root, files, connection, report)
 
+    _refresh_quarantine_report(root, report)
     _write_quarantine_manifest(root, report)
     return report.as_dict()
 
@@ -181,6 +183,28 @@ def _write_quarantine_manifest(root: Path, report: LocalImportReport) -> None:
     )
 
 
+def _refresh_quarantine_report(root: Path, report: LocalImportReport) -> None:
+    quarantine_root = root / QUARANTINE_DIR
+    if not quarantine_root.exists():
+        return
+    items = []
+    for path in sorted(quarantine_root.rglob("*")):
+        if not path.is_file() or path.name == "manifest.json":
+            continue
+        relative_quarantine_path = path.relative_to(root)
+        original_relative_path = path.relative_to(quarantine_root)
+        items.append(
+            {
+                "original_path": str(original_relative_path),
+                "quarantine_path": str(relative_quarantine_path),
+                "reason": ad_candidate_reason(path) or "previously quarantined ad candidate",
+            }
+        )
+    if items:
+        report.quarantined = items
+        report.quarantined_count = len(items)
+
+
 def _group_import_candidates(root: Path) -> dict[tuple[int, int | None, int | None], list[Path]]:
     groups: dict[tuple[int, int | None, int | None], list[Path]] = {}
     for path in root.rglob("*"):
@@ -188,7 +212,10 @@ def _group_import_candidates(root: Path) -> dict[tuple[int, int | None, int | No
             continue
         if path.suffix.lower() not in SUPPORTED_TEXT_EXTENSIONS | {".doc"}:
             continue
-        metadata = parse_exam_metadata(path)
+        try:
+            metadata = parse_exam_metadata(path)
+        except ValueError:
+            continue
         key = (metadata.exam_year, metadata.exam_month, metadata.set_no)
         groups.setdefault(key, []).append(path)
     return groups
@@ -222,9 +249,13 @@ def _import_group(
         metadata = parse_exam_metadata(source)
         imported_skills = set()
         for section in sections:
+            title = _material_title(source, section.heading)
+            imported_skills.add(section.skill)
+            if _material_already_imported(connection, title, metadata.exam_year, section.skill):
+                continue
             material_id = db.save_material(
                 connection,
-                _material_title(source, section.heading),
+                title,
                 section.content,
                 metadata.exam_year,
                 section.skill,
@@ -232,14 +263,13 @@ def _import_group(
             report.materials.append(
                 {
                     "id": material_id,
-                    "title": _material_title(source, section.heading),
+                    "title": title,
                     "skill": section.skill,
                     "exam_year": metadata.exam_year,
                     "source_path": str(source.relative_to(root)),
                 }
             )
             report.imported_material_count += 1
-            imported_skills.add(section.skill)
         if _has_audio(files) and "listening" not in imported_skills:
             report.missing_listening_count += 1
         return
@@ -251,10 +281,11 @@ def _import_answer(
     connection: Any,
     report: LocalImportReport,
 ) -> None:
-    try:
-        text = extract_text_from_file(path)
-    except TextExtractionError as exc:
-        _record_failure(report, root, path, str(exc))
+    source_path = str(path.relative_to(root))
+    if _answer_already_imported(connection, source_path):
+        return
+    text = _answer_text(root, path, report)
+    if text is None:
         return
     metadata = parse_exam_metadata(path)
     answer_id = db.save_answer_explanation(
@@ -262,7 +293,7 @@ def _import_answer(
         path.stem,
         text,
         metadata.exam_year,
-        str(path.relative_to(root)),
+        source_path,
         exam_month=metadata.exam_month,
         set_no=metadata.set_no,
     )
@@ -271,10 +302,43 @@ def _import_answer(
             "id": answer_id,
             "title": path.stem,
             "exam_year": metadata.exam_year,
-            "source_path": str(path.relative_to(root)),
+            "source_path": source_path,
         }
     )
     report.answer_explanation_count += 1
+
+
+def _answer_text(root: Path, path: Path, report: LocalImportReport) -> str | None:
+    if path.suffix.lower() == ".pdf" and path.stat().st_size > MAX_ANSWER_EXTRACTION_BYTES:
+        return (
+            "Text extraction skipped because this answer/explanation PDF is large. "
+            f"Open the local source file when needed: {path.relative_to(root)}"
+        )
+    try:
+        return extract_text_from_file(path)
+    except TextExtractionError as exc:
+        _record_failure(report, root, path, str(exc))
+        return None
+
+
+def _material_already_imported(connection: Any, title: str, exam_year: int, skill: str) -> bool:
+    row = connection.execute(
+        """
+        SELECT 1 FROM materials
+        WHERE title = ? AND exam_year = ? AND skill = ?
+        LIMIT 1
+        """,
+        (title, exam_year, skill),
+    ).fetchone()
+    return row is not None
+
+
+def _answer_already_imported(connection: Any, source_path: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM answer_explanations WHERE source_path = ? LIMIT 1",
+        (source_path,),
+    ).fetchone()
+    return row is not None
 
 
 def _is_answer_file(path: Path) -> bool:

@@ -22,6 +22,14 @@ HEADING_ALIASES = {
     "词汇": "vocabulary",
 }
 
+EXAM_HEADING_PATTERNS = (
+    (re.compile(r"^(part\s+i\s+)?writing(?:\s*(?:\(|:|-)|$)"), "writing"),
+    (re.compile(r"^(part\s+ii\s+)?listening\s+comprehension(?:\s*(?:\(|:|-)|$)"), "listening"),
+    (re.compile(r"^(part\s+iii\s+)?reading\s+comprehension(?:\s*(?:\(|:|-)|$)"), "reading"),
+    (re.compile(r"^(part\s+iv\s+)?translation(?:\s*(?:\(|:|-)|$)"), "translation"),
+    (re.compile(r"^vocabulary(?:\s*(?:\(|:|-)|$)"), "vocabulary"),
+)
+
 
 @dataclass(frozen=True)
 class PaperSection:
@@ -66,8 +74,15 @@ def _heading_skill(line: str) -> str | None:
     heading = _clean_heading(line).lower()
     if not heading:
         return None
+    if heading in HEADING_ALIASES:
+        return HEADING_ALIASES[heading]
+    for pattern, skill in EXAM_HEADING_PATTERNS:
+        if pattern.search(heading):
+            return skill
+    if not _has_heading_marker(line):
+        return None
     for alias, skill in HEADING_ALIASES.items():
-        if heading == alias or heading.startswith(f"{alias} "):
+        if heading.startswith(f"{alias} "):
             return skill
     return None
 
@@ -77,3 +92,8 @@ def _clean_heading(line: str) -> str:
     heading = re.sub(r"^#{1,6}\s*", "", heading)
     heading = heading.strip("[]【】:")
     return heading.strip()
+
+
+def _has_heading_marker(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith("#") or stripped.startswith("[") or stripped.startswith("【")
