@@ -1,5 +1,6 @@
 from pathlib import Path
 import zipfile
+from xml.sax.saxutils import escape
 
 from fastapi.testclient import TestClient
 
@@ -29,7 +30,7 @@ startxref
 
 def write_docx(path: Path, lines: list[str]) -> None:
     body = "".join(
-        f"<w:p><w:r><w:t>{line}</w:t></w:r></w:p>"
+        f"<w:p><w:r><w:t>{escape(line)}</w:t></w:r></w:p>"
         for line in lines
     )
     with zipfile.ZipFile(path, "w") as package:
@@ -229,6 +230,35 @@ def test_large_answer_pdf_is_registered_without_text_extraction(tmp_path, monkey
     with db.connect(db_path) as conn:
         content = conn.execute("SELECT content FROM answer_explanations").fetchone()["content"]
     assert "Text extraction skipped" in content
+
+
+def test_import_local_folder_imports_timestamped_docx_transcript(tmp_path):
+    from app import db
+    from app.ai.fake import FakeAIClient
+    from app.main import create_app
+
+    root = tmp_path / "project"
+    set_dir = root / "2021-06-01"
+    set_dir.mkdir(parents=True)
+    write_docx(
+        set_dir / "transcript.docx",
+        [
+            "[00:00.69]College English Test Band 6<ch>大学英语六级考试",
+            "[00:04.25]Part \u2161 Listening Comprehension<ch>第二部分 听力理解",
+            "[00:07.80]Section A Directions: In this section, you will hear two long conversations.",
+            "[00:41.60]Conversation One<ch>对话一",
+        ],
+    )
+
+    db_path = tmp_path / "cet6.sqlite3"
+    client = TestClient(create_app(ai_client=FakeAIClient(), db_path=db_path))
+    response = client.post("/api/papers/import-local-folder", json={"root_path": str(root)})
+
+    assert response.status_code == 200
+    assert response.json()["imported_material_count"] == 1
+    with db.connect(db_path) as conn:
+        materials = db.list_materials(conn)
+    assert materials[0]["skill"] == "listening"
 
 
 def test_import_local_folder_skips_doc_files_with_report(tmp_path):

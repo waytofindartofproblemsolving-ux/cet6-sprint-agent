@@ -23,10 +23,10 @@ HEADING_ALIASES = {
 }
 
 EXAM_HEADING_PATTERNS = (
-    (re.compile(r"^(part\s+i\s+)?writing(?:\s*(?:\(|:|-)|$)"), "writing"),
-    (re.compile(r"^(part\s+ii\s+)?listening\s+comprehension(?:\s*(?:\(|:|-)|$)"), "listening"),
-    (re.compile(r"^(part\s+iii\s+)?reading\s+comprehension(?:\s*(?:\(|:|-)|$)"), "reading"),
-    (re.compile(r"^(part\s+iv\s+)?translation(?:\s*(?:\(|:|-)|$)"), "translation"),
+    (re.compile(r"^(?:part\b.*)?writing(?:\s*(?:\(|:|-)|$)"), "writing"),
+    (re.compile(r"^(?:part\b.*)?listening\s+comprehension\b"), "listening"),
+    (re.compile(r"^(?:part\b.*)?reading\s+comprehension\b"), "reading"),
+    (re.compile(r"^(?:part\b.*)?translation(?:\s*(?:\(|:|-)|$)"), "translation"),
     (re.compile(r"^vocabulary(?:\s*(?:\(|:|-)|$)"), "vocabulary"),
 )
 
@@ -89,7 +89,9 @@ def _heading_skill(line: str) -> str | None:
 
 def _clean_heading(line: str) -> str:
     heading = line.strip()
+    heading = re.sub(r"^(?:\[\d{1,2}:\d{2}(?:\.\d+)?\]\s*)+", "", heading)
     heading = re.sub(r"^#{1,6}\s*", "", heading)
+    heading = re.sub(r"<ch>.*$", "", heading, flags=re.IGNORECASE)
     heading = heading.strip("[]【】:")
     return heading.strip()
 

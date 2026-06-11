@@ -102,3 +102,43 @@ reading initiatives can reduce inequality in the earliest years.
     assert len(sections) == 1
     assert sections[0].skill == "reading"
     assert "writing it was" in sections[0].content
+
+
+def test_split_exam_paper_accepts_unicode_roman_numeral_exam_headings():
+    from app.services.paper_import import split_exam_paper
+
+    sections = split_exam_paper(
+        """
+2021 College English Test Band 6
+Part I\u2161I (30 minutes)Listening Comprehension
+Questions 1 to 4 are based on the conversation.
+Part \u2162 Reading Comprehension (40 minutes)
+Read the following passage and answer questions.
+Part \u2163 Translation (30 minutes)
+Translate the following paragraph into English.
+"""
+    )
+
+    assert [section.skill for section in sections] == [
+        "listening",
+        "reading",
+        "translation",
+    ]
+    assert "Questions 1 to 4" in sections[0].content
+
+
+def test_split_exam_paper_accepts_timestamped_listening_transcript_heading():
+    from app.services.paper_import import split_exam_paper
+
+    sections = split_exam_paper(
+        """
+[00:00.69]College English Test Band 6<ch>大学英语六级考试
+[00:04.25]Part \u2161 Listening Comprehension<ch>第二部分 听力理解
+[00:07.80]Section A Directions: In this section, you will hear two long conversations.
+[00:41.60]Conversation One<ch>对话一
+"""
+    )
+
+    assert len(sections) == 1
+    assert sections[0].skill == "listening"
+    assert "Conversation One" in sections[0].content
